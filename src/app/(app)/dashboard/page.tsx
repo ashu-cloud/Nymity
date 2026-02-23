@@ -7,8 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios";
 import { Copy, RefreshCcw, Loader2, Sparkles, Settings2 } from "lucide-react";
 import { User } from "next-auth";
-import { toast } from "sonner"; // Using your sonner import
-
+import { toast } from "sonner";
+import Pusher from 'pusher-js';
 import { Message } from "@/model/user";
 import { ApiResponse } from "@/types/ApiResponse";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,35 @@ export default function Dashboard() {
         void fetchMessages();
         void fetchAcceptMessage();
     }, [session, setValue, fetchAcceptMessage, fetchMessages]);
+
+    useEffect(() => {
+        if (!session || !session.user) return;
+
+        // Initialize the Pusher client
+        const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+            cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+        });
+
+        // Subscribe to this specific user's channel
+        const channel = pusher.subscribe(`user-${session.user.username}`);
+
+        // Listen for the 'new-message' event we setup in the backend
+        channel.bind('new-message', (newMessage: Message) => {
+            // Unshift the new message to the top of the state array instantly
+            setMessages((prevMessages) => [newMessage, ...prevMessages]);
+
+            // Show a beautiful toast notification
+            toast.success('New anonymous message received! 🤫', {
+                description: "Someone just dropped a truth bomb."
+            });
+        });
+
+        // Cleanup function: disconnect when the user leaves the dashboard
+        return () => {
+            pusher.unsubscribe(`user-${session.user.username}`);
+            pusher.disconnect();
+        };
+    }, [session]);
 
     // 3. Fixed async typo and changed to axios.post
     const handleSwitchChange = async () => {
