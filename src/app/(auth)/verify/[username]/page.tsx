@@ -56,19 +56,6 @@ export default function VerifyAccount() {
     return (
         <div className="relative flex min-h-screen items-center justify-center bg-[#0a0a0f] overflow-hidden selection:bg-violet-500/30">
 
-            {/* Sticky Header with Blur Backdrop */}
-            <header className="fixed top-0 left-0 w-full z-50 bg-[#0a0a0f]/40 backdrop-blur-xl border-b border-white/[0.04]">
-                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-2 group cursor-pointer">
-                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-400 group-hover:bg-violet-500/20 transition-colors duration-300">
-                            <Sparkles className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">
-                            Nymity
-                        </span>
-                    </div>
-                </div>
-            </header>
 
             {/* Ambient Mesh Gradient Blobs */}
             <div className="absolute inset-0 z-0 pointer-events-none">
