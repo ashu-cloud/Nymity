@@ -48,13 +48,25 @@ Built with scalability and modern UX in mind, this project goes beyond a basic C
 
 ---
 
-## ⚡ System Architecture & Performance
+## ⚡ Advanced System Architecture & Performance
 
-To ensure the application remains performant even under heavy load, several senior-level architectural patterns were implemented:
+Nymity is engineered to handle high-concurrency traffic and large data payloads without compromising user experience or browser performance. Below is a deep dive into the architectural decisions that make this platform production-ready:
 
-1. **Stale-While-Revalidate (SWR):** Raw `useEffect` and `axios` fetching was replaced with Vercel's SWR. This provides automatic caching, background refetching, and eliminates loading spinners when navigating between the profile and dashboard.
-2. **Frontend Array Chunking:** Rendering hundreds of message cards simultaneously causes severe DOM bloat and main-thread freezing. Nymity implements a strict pagination system, rendering messages in chunks of 12 with a "Load More" intersection pattern.
-3. **Atomic Database Operations:** The backend utilizes MongoDB's `$push` atomic operators instead of full-document saves, dramatically reducing network payload size and bypassing legacy document validation errors.
+### 1. Real-Time WebSocket Lifecycle Management
+* **Targeted Subscriptions:** Instead of establishing global WebSocket connections, the Pusher client is strictly initialized within the authenticated dashboard context. It listens exclusively to a private channel mapped to the user's MongoDB `_id`.
+* **Memory Leak Prevention:** The React `useEffect` lifecycle strictly manages WebSocket bindings. When a user navigates away from the dashboard, a precise cleanup function (`pusher.unsubscribe` and `pusher.disconnect`) executes automatically. This severs the connection, freeing up browser memory and preventing duplicate event-listener "zombie" bugs.
+
+### 2. Intelligent Data Fetching & Caching (SWR)
+* **Stale-While-Revalidate Strategy:** Standard `axios` polling was replaced with Vercel’s SWR. Upon loading the dashboard, the UI instantly renders cached messages from local memory (stale) while simultaneously sending a background request to the server (revalidate) to sync any missed data, completely eliminating loading spinners.
+* **Optimistic Cache Mutation:** When a user deletes a message or toggles their "Accept Messages" status, the UI updates instantly. SWR's `mutate` function intercepts the local cache and applies the change immediately before the server even responds. If the server throws an error, the UI automatically rolls back to its previous state.
+
+### 3. Database Write Optimization (MongoDB)
+* **Atomic Operators vs. Full-Document Saves:** Traditional Mongoose `.save()` operations load the entire user document (including hundreds of old messages) into server memory, append the array, and send the massive document back. Nymity bypasses this entirely using MongoDB's `$push` atomic operator. This isolated operation only sends the exact bytes of the new message over the network, executing in milliseconds and completely eliminating validation collisions with legacy data.
+* **Idempotent Data Handling:** Because message IDs are explicitly cast to strings before being sent through WebSockets, the frontend can seamlessly process real-time deletions and appends without encountering `[object Object]` reference errors.
+
+### 4. Client-Side Rendering (CSR) Scalability
+* **Frontend Array Chunking:** Rendering 500+ heavy DOM nodes for an influencer's account creates severe main-thread blocking, causing the browser to freeze. Nymity mitigates this by keeping the full dataset in memory but slicing the rendered component array to a strict maximum of 12 nodes. A lightweight "Load More" interaction seamlessly expands the slice as needed.
+* **Copy-on-Sort Immutability:** To prevent React rendering bugs and state mutation side-effects, incoming database arrays are safely copied (`[...messages]`) prior to applying timestamp sorting. This guarantees that the newest messages always snap to the top of the grid perfectly.
 
 ---
 
