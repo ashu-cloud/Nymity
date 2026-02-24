@@ -1,11 +1,21 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions } from "next-auth"; // <-- This missing import fixes 90% of the errors!
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+import GithubProvider from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import UserModel from "@/model/user";
 
 export const authOptions: NextAuthOptions = {
     providers: [
+        GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        }),
+        GithubProvider({
+            clientId: process.env.GITHUB_CLIENT_ID!,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        }),
         CredentialsProvider({
             id: "credentials",
             name: "credentials",
@@ -23,7 +33,6 @@ export const authOptions: NextAuthOptions = {
             async authorize(credentials: any): Promise<any> {
                 await dbConnect();
 
-                // Check to ensure credentials exist and fix "Object is possibly 'undefined'" errors
                 if (!credentials || !credentials.identifier || !credentials.password) {
                     throw new Error("Missing credentials");
                 }
@@ -53,7 +62,6 @@ export const authOptions: NextAuthOptions = {
                         throw new Error("Invalid credentials");
                     }
 
-                    // Return user as any to resolve Mongoose Document vs NextAuth User type mismatch
                     return user as any;
                 } catch (error: any) {
                     throw new Error(error.message || "Login failed");
@@ -63,6 +71,35 @@ export const authOptions: NextAuthOptions = {
     ],
 
     callbacks: {
+        async signIn({ user, account }) {
+            // If it's a social login (Google/Github)
+            if (account?.provider !== "credentials") {
+                await dbConnect();
+                try {
+                    const existingUser = await UserModel.findOne({ email: user.email as string });
+
+                    if (!existingUser) {
+                        // Create a new user if it's their first time
+                        const baseUsername = user.email?.split('@')[0] || "user";
+                        const uniqueUsername = `${baseUsername}_${Math.floor(Math.random() * 1000)}`;
+
+                        await UserModel.create({
+                            email: user.email as string,
+                            username: uniqueUsername,
+                            isVerified: true,
+                            isAcceptingMessage: true,
+                            messages: [],
+                        });
+                    }
+                    return true;
+                } catch (error) {
+                    console.error("Error creating OAuth user:", error);
+                    return false;
+                }
+            }
+            return true;
+        },
+
         async jwt({ token, user }) {
             if (user) {
                 token._id = user._id?.toString();
@@ -70,15 +107,27 @@ export const authOptions: NextAuthOptions = {
                 token.isAcceptingMessages = user.isAcceptingMessages;
                 token.username = user.username;
             }
+
+            // Fetch from DB for OAuth users who just logged in
+            if (!token.username) {
+                await dbConnect();
+                const dbUser = await UserModel.findOne({ email: token.email as string });
+                if (dbUser) {
+                    token._id = dbUser._id.toString();
+                    token.isVerified = dbUser.isVerified;
+                    token.isAcceptingMessages = dbUser.isAcceptingMessage;
+                    token.username = dbUser.username;
+                }
+            }
             return token;
         },
 
         async session({ session, token }) {
             if (token) {
-                session.user._id = token._id;
-                session.user.isVerified = token.isVerified;
-                session.user.isAcceptingMessages = token.isAcceptingMessages;
-                session.user.username = token.username;
+                session.user._id = token._id as string;
+                session.user.isVerified = token.isVerified as boolean;
+                session.user.isAcceptingMessages = token.isAcceptingMessages as boolean;
+                session.user.username = token.username as string;
             }
             return session;
         },

@@ -20,6 +20,8 @@ import axios, { AxiosError } from 'axios';
 import { Loader2, UserPlus, ArrowRight, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { signUpSchema } from '@/schemas/signUpSchema';
+import { signIn } from "next-auth/react";
+import { FaGoogle, FaGithub } from "react-icons/fa";
 
 export default function SignUpForm() {
     const [username, setUsername] = useState('');
@@ -197,6 +199,44 @@ export default function SignUpForm() {
                             </Button>
                         </form>
                     </Form>
+                    {/* --- OAUTH SECTION --- */}
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-white/[0.08]"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                {/* Matches your glass card background! */}
+                                <span className="px-2 bg-[#0a0a0f] text-white/50">
+                                    Or continue with
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Stacking the buttons vertically to keep the card elegant */}
+                        <div className="mt-6 flex flex-col gap-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full font-semibold bg-[#0d0d1a]/50 border-white/[0.08] text-white hover:bg-white/[0.05] hover:text-white transition-all duration-300"
+                                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                            >
+                                <FaGoogle className="mr-2 h-4 w-4 text-red-500" />
+                                Google
+                            </Button>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full font-semibold bg-[#0d0d1a]/50 border-white/[0.08] text-white hover:bg-white/[0.05] hover:text-white transition-all duration-300"
+                                onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+                            >
+                                <FaGithub className="mr-2 h-4 w-4" />
+                                GitHub
+                            </Button>
+                        </div>
+                    </div>
+                    {/* ----------------------- */}
 
                     <div className="mt-8 text-center text-sm text-[#94a3b8]">
                         <p>

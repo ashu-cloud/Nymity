@@ -10,7 +10,7 @@ export interface Message extends Document {
 const MessageSchema = new Schema({
     content: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
-    recipientId: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+    recipientId: { type: Schema.Types.ObjectId, ref: 'User' , index: true}
 });
 
 export interface User extends Document {
@@ -38,15 +38,15 @@ const UserSchema: Schema<User> = new Schema({
     },
     password: {
         type: String,
-        required: [true, "Password is required"],
+        // required: [true, "Password is required"],
     },
     verifyCode: {
         type: String,
-        required: [true, "Verify Code is required"],
+        // required: [true, "Verify Code is required"],
     },
     verifyCodeExpires: {
         type: Date,
-        required: [true, "Verify Code Expiration is required"],
+        // required: [true, "Verify Code Expiration is required"],
     },
     isVerified: {
         type: Boolean,

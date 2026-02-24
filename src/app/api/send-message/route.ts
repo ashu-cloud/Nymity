@@ -1,6 +1,7 @@
 import dbConnect from "@/lib/dbConnect";
 import UserModel, { Message } from "@/model/user";
 import { pusherServer } from "@/lib/pusher";
+import mongoose from "mongoose";
 
 export async function POST(req: Request) {
     await dbConnect();
@@ -19,24 +20,29 @@ export async function POST(req: Request) {
         }
 
         const newMessage = {
-            content,
+            _id: new mongoose.Types.ObjectId(),
+            content: content,
             createdAt: new Date(),
+            recipientId: user._id,
         };
-
-        user.messages.push(newMessage as Message);
-        await user.save();
-
+        await UserModel.updateOne(
+            { _id: user._id },
+            { $push: { messages: newMessage } }
+        );
         // --- REAL-TIME PUSHER TRIGGER ---
         // Grab the exact message we just saved so we get the MongoDB generated _id
+        const pusherMessage = {
+            _id: newMessage._id.toString(), // <-- CRITICAL: Convert Object to String
+            content: newMessage.content,
+            createdAt: newMessage.createdAt,
+            // recipientId: newMessage.recipientId.toString() // (Optional if needed on frontend)
+        };
+
         const savedMessage = user.messages[user.messages.length - 1];
 
         try {
             // Trigger an event on a channel uniquely named after the user
-            await pusherServer.trigger(
-                `user-${user.username}`,
-                'new-message',
-                savedMessage
-            );
+            await pusherServer.trigger(user._id.toString(), 'new-message', pusherMessage);
         } catch (pusherError) {
             console.error("Pusher trigger failed:", pusherError);
             // We don't return an error here because the message STILL saved to the database successfully!

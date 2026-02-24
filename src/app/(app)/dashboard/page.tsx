@@ -83,7 +83,7 @@ export default function Dashboard() {
         });
 
         // Subscribe to this specific user's channel
-        const channel = pusher.subscribe(`user-${session.user.username}`);
+        const channel = pusher.subscribe(session.user._id as string);
 
         // Listen for the 'new-message' event we setup in the backend
         channel.bind('new-message', (newMessage: Message) => {
@@ -98,8 +98,8 @@ export default function Dashboard() {
 
         // Cleanup function: disconnect when the user leaves the dashboard
         return () => {
-            pusher.unsubscribe(`user-${session.user.username}`);
-            pusher.disconnect();
+            pusher.unsubscribe(session.user._id as string);
+            pusher.disconnect(); // Frees up browser memory when they leave the page
         };
     }, [session]);
 
@@ -230,13 +230,17 @@ export default function Dashboard() {
                 {/* Message Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {messages.length > 0 ? (
-                        messages.map((message) => (
-                            <MessageCard
-                                key={String(message._id)}
-                                message={message}
-                                onMessageDelete={handleDeleteMessage}
-                            />
-                        ))
+                        // 1. We use [...messages] to safely copy the array so we don't mutate React state directly
+                        // 2. We sort it by the createdAt date (newest first)
+                        [...messages]
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .map((message) => (
+                                <MessageCard
+                                    key={String(message._id)}
+                                    message={message}
+                                    onMessageDelete={handleDeleteMessage}
+                                />
+                            ))
                     ) : (
                         <div className="col-span-full py-20 text-center rounded-[2rem] border border-dashed border-white/20 bg-white/[0.01]">
                             <p className="text-[#94a3b8] text-lg font-medium">No messages to display.</p>

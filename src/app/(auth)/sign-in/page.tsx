@@ -15,14 +15,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {toast } from "sonner"
+import { toast } from "sonner";
 import { signInSchema } from '@/schemas/signInSchema';
-import { Loader2, LogIn, ArrowRight, Sparkles } from 'lucide-react';
+import { Loader2, LogIn, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
+import { FaGoogle, FaGithub } from "react-icons/fa";
 
 export default function SignInForm() {
     const router = useRouter();
-
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const form = useForm<z.infer<typeof signInSchema>>({
@@ -47,17 +47,16 @@ export default function SignInForm() {
                 setIsSubmitting(false); // Stop the spinner so they can try again
             } else if (result?.ok) {
                 toast.success('Logged in successfully!');
-
-                window.location.href = '/dashboard';
+                router.replace('/dashboard');
             }
         } catch (error) {
             toast.error('An unexpected error occurred');
             setIsSubmitting(false);
         }
     };
+
     return (
         <div className="relative flex min-h-screen items-center justify-center bg-[#0a0a0f] overflow-hidden selection:bg-violet-500/30">
-
 
             {/* Ambient Mesh Gradient Blobs */}
             <div className="absolute inset-0 z-0 pointer-events-none">
@@ -135,18 +134,57 @@ export default function SignInForm() {
 
                                 {isSubmitting ? (
                                     <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Authenticating...
-                      </span>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Authenticating...
+                                    </span>
                                 ) : (
                                     <span className="flex items-center gap-2">
-                          Sign In
-                          <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform duration-300" />
-                      </span>
+                                        Sign In
+                                        <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform duration-300" />
+                                    </span>
                                 )}
                             </Button>
                         </form>
                     </Form>
+
+                    {/* --- OAUTH SECTION --- */}
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-white/[0.08]"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                {/* Matched the background to your glass card! */}
+                                <span className="px-2 bg-[#0a0a0f] text-white/50">
+                                    Or continue with
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-col gap-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                // Styled the buttons to match your custom input fields
+                                className="w-full font-semibold bg-[#0d0d1a]/50 border-white/[0.08] text-white hover:bg-white/[0.05] hover:text-white transition-all duration-300"
+                                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                            >
+                                <FaGoogle className="mr-2 h-4 w-4 text-red-500" />
+                                Google
+                            </Button>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full font-semibold bg-[#0d0d1a]/50 border-white/[0.08] text-white hover:bg-white/[0.05] hover:text-white transition-all duration-300"
+                                onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+                            >
+                                <FaGithub className="mr-2 h-4 w-4" />
+                                GitHub
+                            </Button>
+                        </div>
+                    </div>
+                    {/* ----------------------- */}
 
                     <div className="mt-8 text-center text-sm text-[#94a3b8]">
                         <p>
