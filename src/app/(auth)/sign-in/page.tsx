@@ -35,22 +35,26 @@ export default function SignInForm() {
 
     const onSubmit = async (data: z.infer<typeof signInSchema>) => {
         setIsSubmitting(true);
-        const result = await signIn('credentials', {
-            redirect: false,
-            identifier: data.identifier,
-            password: data.password,
-        });
+        try {
+            const result = await signIn('credentials', {
+                redirect: false,
+                identifier: data.identifier,
+                password: data.password,
+            });
 
-        if (result?.error) {
-            toast('Login Failed');
+            if (result?.error) {
+                toast.error(result.error || 'Login Failed');
+                setIsSubmitting(false); // Stop the spinner so they can try again
+            } else if (result?.ok) {
+                toast.success('Logged in successfully!');
+
+                window.location.href = '/dashboard';
+            }
+        } catch (error) {
+            toast.error('An unexpected error occurred');
             setIsSubmitting(false);
         }
-
-        if (result?.url) {
-            router.replace('/dashboard');
-        }
     };
-
     return (
         <div className="relative flex min-h-screen items-center justify-center bg-[#0a0a0f] overflow-hidden selection:bg-violet-500/30">
 

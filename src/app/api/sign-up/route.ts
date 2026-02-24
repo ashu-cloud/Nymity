@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         }
 
         const existingUser = await UserModel.findOne({ email });
-        const verifyCode = Math.floor(10000 + Math.random() * 90000).toString();
+        const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiryDate = new Date(Date.now() + 3600000);
 
         if (existingUser) {

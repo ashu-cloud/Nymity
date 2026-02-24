@@ -6,18 +6,12 @@ export interface Message extends Document {
     createdAt: Date;
 }
 
-const MessageSchema: Schema<Message> = new Schema({
-    content:{
-        type: String,
-        required: true,
-    },
-    createdAt: {
-        type: Date,
-        required: true,
-        default: Date.now,
-    }
-})
 
+const MessageSchema = new Schema({
+    content: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    recipientId: { type: Schema.Types.ObjectId, ref: 'User', required: true }
+});
 
 export interface User extends Document {
     username: string;
@@ -35,10 +29,12 @@ const UserSchema: Schema<User> = new Schema({
     username: {
         type: String,
         required: [true , "Username is required"],
+        unique: true, // Added this!
     },
     email: {
         type: String,
         required: [true , "Email is required"],
+        unique: true, // Added this!
     },
     password: {
         type: String,
@@ -47,6 +43,10 @@ const UserSchema: Schema<User> = new Schema({
     verifyCode: {
         type: String,
         required: [true, "Verify Code is required"],
+    },
+    verifyCodeExpires: {
+        type: Date,
+        required: [true, "Verify Code Expiration is required"],
     },
     isVerified: {
         type: Boolean,
@@ -58,6 +58,5 @@ const UserSchema: Schema<User> = new Schema({
     },
     messages: [MessageSchema]
 })
-
 const UserModel = mongoose.models.User as mongoose.Model<User>|| mongoose.model<User>("User", UserSchema);
 export default UserModel;

@@ -20,7 +20,8 @@ export async function DELETE(
     }
 
     const user = session.user as User;
-    const messageId = params.messageid;
+    const resolvedParams = await params
+    const messageId = resolvedParams.messageid;
 
     // 2. Validate the message ID format before touching the database
     if (!mongoose.Types.ObjectId.isValid(messageId)) {

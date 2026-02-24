@@ -6,7 +6,7 @@ import {User} from 'next-auth';
 
 
 
-export async function POST(request: Request, response: Response) {
+export async function POST(request: Request) {
     await dbConnect();
     const session = await getServerSession(authOptions)
 
@@ -20,13 +20,13 @@ export async function POST(request: Request, response: Response) {
     }
     const userId = session.user._id;
 
-    const {acceptMessage} = await request.json();
+    const {acceptMessages} = await request.json();
 
     try{
 
         const updatedUser = await UserModel.findByIdAndUpdate(
             userId,
-            {isAcceptingMessage: acceptMessage},
+            {isAcceptingMessage: acceptMessages},
             {new:true}
         )
         if(!updatedUser) {
@@ -38,7 +38,7 @@ export async function POST(request: Request, response: Response) {
 
         return Response.json({
             success: true,
-            message:"User updated to accept messages",
+            message: `Message acceptance is now ${acceptMessages ? 'ON' : 'OFF'}`,
             updatedUser
         },{status:200})
 
@@ -52,7 +52,7 @@ export async function POST(request: Request, response: Response) {
 }
 
 
-export async function GET(request: Request, response: Response) {
+export async function GET(request: Request) {
     await dbConnect();
     const session = await getServerSession(authOptions)
 
@@ -77,7 +77,7 @@ export async function GET(request: Request, response: Response) {
         return Response.json({
             success: true,
             message:"User found",
-            isAcceptingMessage: foundUser.isAcceptingMessage
+            isAcceptingMessages: foundUser.isAcceptingMessage
         })
 
     }catch(error){

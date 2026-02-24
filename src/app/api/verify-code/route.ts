@@ -32,7 +32,7 @@ export async function POST(req: Request, res: Response) {
             user.isVerified = true;
             await user.save();
             return Response.json({
-                sucess: true,
+                success: true,
                 message: "User Verification Completed Successfully",
             }, {status: 200})
         }
@@ -40,7 +40,7 @@ export async function POST(req: Request, res: Response) {
             return Response.json({
                 success: false,
                 message: "Verification Code is Expired",
-            })
+            },{status: 400})
         }
 
     }catch(error){
