@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios";
-import { Copy, RefreshCcw, Loader2, Sparkles, Settings2 } from "lucide-react";
+import { Copy, RefreshCcw, Loader2, Sparkles, Settings2, ChevronDown } from "lucide-react";
 import { User } from "next-auth";
 import { toast } from "sonner";
 import Pusher from 'pusher-js';
@@ -16,13 +16,17 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { acceptMessageSchema } from "@/schemas/acceptMessageSchema";
 import MessageCard from "@/components/messageCard";
+import useSWR from 'swr';
+
+// --- FIX 1: Define SWR Fetcher ---
+// This tells SWR how to grab data across the app
+const fetcher = (url: string) => axios.get(url).then(res => res.data);
 
 export default function Dashboard() {
-    // 1. Fixed state naming (message -> messages)
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isSwitchLoading, setIsSwitchLoading] = useState<boolean>(false);
-
+    // --- FIX 2: Pagination State ---
+    // Instead of rendering 500 messages, we start with 12 and chunk them
+    const [visibleCount, setVisibleCount] = useState<number>(12);
+    
     const { data: session, status } = useSession();
 
     const form = useForm({
@@ -33,89 +37,94 @@ export default function Dashboard() {
     const { register, watch, setValue } = form;
     const acceptMessages = watch('acceptMessages');
 
+    // --- FIX 1: SWR Implementation for Messages & Settings ---
+    // This replaces all your complex useEffect and useState data fetching!
+    // It automatically handles caching, loading states, and background refetching.
+    const { 
+        data: messagesResponse, 
+        isLoading: isMessagesLoading, 
+        mutate: mutateMessages 
+    } = useSWR<ApiResponse>(session?.user ? '/api/get-messages' : null, fetcher);
+
+    const { 
+        data: settingsResponse, 
+        mutate: mutateSettings 
+    } = useSWR<ApiResponse>(session?.user ? '/api/accept-messages' : null, fetcher);
+
+    // Safely extract messages from the SWR cache, default to empty array
+    const messages = messagesResponse?.messages || [];
+
+    // Sync SWR settings cache with React Hook Form
+    useEffect(() => {
+        if (settingsResponse) {
+            setValue('acceptMessages', settingsResponse.isAcceptingMessages ?? true);
+        }
+    }, [settingsResponse, setValue]);
+
+    // Handle Delete: Update SWR Cache Optimistically
     const handleDeleteMessage = (messageId: string) => {
-        setMessages(messages.filter((m) => String(m._id) !== messageId));
+        mutateMessages((currentData) => {
+            if (!currentData) return currentData;
+            return {
+                ...currentData,
+                messages: (currentData.messages || []).filter((m) => String(m._id) !== messageId)
+            };
+        }, false); // false means don't trigger a background re-fetch immediately
     };
 
-    const fetchAcceptMessage = useCallback(async () => {
-        setIsSwitchLoading(true);
+    // Handle Switch: Update settings with rollback on error
+    const handleSwitchChange = async () => {
+        const previousSetting = acceptMessages;
+        const newSetting = !acceptMessages;
+
+        // Optimistic UI Update: Flip the switch instantly for a snappy UX
+        setValue('acceptMessages', newSetting);
+
         try {
-            const response = await axios.get<ApiResponse>('/api/accept-messages');
-            setValue('acceptMessages', response.data.isAcceptingMessages ?? true);
+            const response = await axios.post<ApiResponse>('/api/accept-messages', {
+                acceptMessages: newSetting
+            });
+            // Update the SWR cache silently
+            mutateSettings({ ...settingsResponse, isAcceptingMessages: newSetting } as ApiResponse, false);
+            toast.success(response.data.message);
         } catch (e) {
+            // Revert UI if the server fails
+            setValue('acceptMessages', previousSetting);
             const axiosError = e as AxiosError<ApiResponse>;
-            toast.error(axiosError.response?.data.message ?? "Failed to fetch settings");
-        } finally {
-            setIsSwitchLoading(false);
+            toast.error(axiosError.response?.data.message ?? "Failed to update settings");
         }
-    }, [setValue]);
+    };
 
-    // 2. Fixed the broken nested async function
-    const fetchMessages = useCallback(async (refresh: boolean = false) => {
-        setIsLoading(true);
-        try {
-            const response = await axios.get<ApiResponse>('/api/get-messages');
-            setMessages(response.data.messages || []);
-
-            if (refresh) {
-                toast.success("Showing latest Messages");
-            }
-        } catch (e) {
-            const axiosError = e as AxiosError<ApiResponse>;
-            toast.error(axiosError.response?.data.message ?? "Failed to fetch messages");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [setMessages]);
-
-    useEffect(() => {
-        if (!session || !session.user) return;
-        void fetchMessages();
-        void fetchAcceptMessage();
-    }, [session, setValue, fetchAcceptMessage, fetchMessages]);
-
+    // --- REAL-TIME PUSHER INTEGRATION ---
     useEffect(() => {
         if (!session || !session.user) return;
 
-        // Initialize the Pusher client
         const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
             cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
         });
 
-        // Subscribe to this specific user's channel
         const channel = pusher.subscribe(session.user._id as string);
 
-        // Listen for the 'new-message' event we setup in the backend
         channel.bind('new-message', (newMessage: Message) => {
-            // Unshift the new message to the top of the state array instantly
-            setMessages((prevMessages) => [newMessage, ...prevMessages]);
+            // Update the SWR Cache instantly when a websocket event fires!
+            mutateMessages((currentData) => {
+                const existingMessages = currentData?.messages || [];
+                return {
+                    ...currentData,
+                    messages: [newMessage, ...existingMessages]
+                } as ApiResponse;
+            }, false);
 
-            // Show a beautiful toast notification
             toast.success('New anonymous message received! 🤫', {
                 description: "Someone just dropped a truth bomb."
             });
         });
 
-        // Cleanup function: disconnect when the user leaves the dashboard
         return () => {
             pusher.unsubscribe(session.user._id as string);
-            pusher.disconnect(); // Frees up browser memory when they leave the page
+            pusher.disconnect(); 
         };
-    }, [session]);
-
-    // 3. Fixed async typo and changed to axios.post
-    const handleSwitchChange = async () => {
-        try {
-            const response = await axios.post<ApiResponse>('/api/accept-messages', {
-                acceptMessages: !acceptMessages
-            });
-            setValue('acceptMessages', !acceptMessages);
-            toast.success(response.data.message);
-        } catch (e) {
-            const axiosError = e as AxiosError<ApiResponse>;
-            toast.error(axiosError.response?.data.message ?? "Failed to update settings");
-        }
-    };
+    }, [session, mutateMessages]); // added mutateMessages to dependency array
 
     if (status === "loading") {
         return (
@@ -130,7 +139,6 @@ export default function Dashboard() {
     }
 
     const { username } = session.user as User;
-    // Safely generate the URL for the client side
     const baseUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '';
     const profileUrl = `${baseUrl}/u/${username}`;
 
@@ -162,7 +170,6 @@ export default function Dashboard() {
 
                 {/* Control Panel */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                     {/* Unique Link Card */}
                     <div className="rounded-[2rem] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] p-6 sm:p-8 shadow-[0_0_40px_rgba(124,58,237,0.05)]">
                         <div className="flex items-center gap-3 mb-4">
@@ -198,7 +205,6 @@ export default function Dashboard() {
                                 {...register('acceptMessages')}
                                 checked={acceptMessages}
                                 onCheckedChange={handleSwitchChange}
-                                disabled={isSwitchLoading}
                                 className="data-[state=checked]:bg-violet-600"
                             />
                         </div>
@@ -214,26 +220,23 @@ export default function Dashboard() {
                         variant="ghost"
                         onClick={(e) => {
                             e.preventDefault();
-                            fetchMessages(true);
+                            // SWR mutates data in the background instantly
+                            mutateMessages(); 
+                            toast.success("Messages Refreshed");
                         }}
                         className="h-10 px-4 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 group transition-all"
                     >
-                        {isLoading ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                        ) : (
-                            <RefreshCcw className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500 text-cyan-400" />
-                        )}
+                        <RefreshCcw className={`w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500 text-cyan-400 ${isMessagesLoading ? 'animate-spin' : ''}`} />
                         Refresh
                     </Button>
                 </div>
 
-                {/* Message Grid */}
+                {/* --- FIX 2: Message Grid with Pagination --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {messages.length > 0 ? (
-                        // 1. We use [...messages] to safely copy the array so we don't mutate React state directly
-                        // 2. We sort it by the createdAt date (newest first)
                         [...messages]
                             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .slice(0, visibleCount) // Slice array to protect the DOM
                             .map((message) => (
                                 <MessageCard
                                     key={String(message._id)}
@@ -248,6 +251,21 @@ export default function Dashboard() {
                         </div>
                     )}
                 </div>
+
+                {/* Load More Button */}
+                {messages.length > visibleCount && (
+                    <div className="flex justify-center mt-10">
+                        <Button
+                            variant="outline"
+                            onClick={() => setVisibleCount((prev) => prev + 12)}
+                            className="h-12 px-8 bg-transparent hover:bg-white/5 text-white rounded-full border border-white/20 transition-all font-semibold"
+                        >
+                            <ChevronDown className="w-5 h-5 mr-2 animate-bounce" />
+                            Load More Messages
+                        </Button>
+                    </div>
+                )}
+                
             </div>
         </div>
     );
