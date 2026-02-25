@@ -12,7 +12,7 @@
 
 ## 🌐 Live Demo
 
-**Experience the platform live:** [nymity.vercel.app]([https://your-deployment-link-goes-here.com](https://nymity-1krp12enx-ashupanchal8360-6347s-projects.vercel.app/))
+**Experience the platform live:** [nymity.vercel.app](https://nymity-1krp12enx-ashupanchal8360-6347s-projects.vercel.app/)
 
 *Tip: Create a test account or use the Google/GitHub OAuth login to generate your own secret link and test the real-time dashboard!*
 
