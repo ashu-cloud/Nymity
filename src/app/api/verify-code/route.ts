@@ -3,13 +3,14 @@ import { z } from "zod";
 import UserModel from "@/model/user";
 import { usernameValidation } from "@/schemas/signUpSchema";
 
-export async function POST(req: Request, res: Response) {
+// The fix: Removed `, res: Response` from the parameters
+export async function POST(req: Request) {
     await dbConnect()
     try{
 
         const {username , code} = await req.json()
 
-        const decodedUsername =decodeURIComponent(username)
+        const decodedUsername = decodeURIComponent(username)
         const user = await UserModel.findOne({username: decodedUsername})
 
         if(!user){
