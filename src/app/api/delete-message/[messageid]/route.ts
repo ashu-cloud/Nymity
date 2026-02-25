@@ -7,7 +7,8 @@ import mongoose from "mongoose";
 
 export async function DELETE(
     req: Request,
-    { params }: { params: { messageid: string } }
+    // The fix: Changed the type from an object to a Promise of an object
+    { params }: { params: Promise<{ messageid: string }> } 
 ) {
     // 1. Check Authentication FIRST (Saves database resources!)
     const session = await getServerSession(authOptions);
@@ -20,7 +21,8 @@ export async function DELETE(
     }
 
     const user = session.user as User;
-    const resolvedParams = await params
+    // We await the params because in newer Next.js versions, params are strictly asynchronous
+    const resolvedParams = await params;
     const messageId = resolvedParams.messageid;
 
     // 2. Validate the message ID format before touching the database
